@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026年全国相关展会信息统计</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .page-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 20px 30px;
+        }
+        table {
+            table-layout: fixed;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            position: relative;
+            user-select: none;
+        }
+        .resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 6px;
+            height: 100%;
+            background: rgba(59, 130, 246, 0.2);
+            cursor: col-resize;
+            user-select: none;
+        }
+        .resizer:hover {
+            background: rgba(59, 130, 246, 0.4);
+        }
+        td, th {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .break-keep {
+            white-space: normal !important;
+            word-break: break-word;
+        }
+        .break-all {
+            word-break: break-all;
+        }
+        .filter-tag {
+            background: #e5f0ff;
+            color: #1d4ed8;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-right: 6px;
+            margin-bottom: 6px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .filter-tag .close {
+            margin-left: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-sm">
+<div class="page-container">
+    <h1 class="text-3xl font-bold text-center mb-6 text-blue-700">2026年全国相关展会信息统计</h1>
+
+    <div class="flex flex-wrap gap-3 mb-6 justify-center">
+        <button id="addBtn" class="bg-blue-600 text-white px-5 py-2.5 rounded">➕ 添加展会</button>
+        <label class="bg-purple-600 text-white px-5 py-2.5 rounded cursor-pointer">
+            📊 Excel 导入
+            <input type="file" id="excelFile" accept=".xlsx,.xls" class="hidden">
+        </label>
+        <button id="exportBtn" class="bg-green-600 text-white px-5 py-2.5 rounded">📥 导出数据</button>
+        <button id="clearBtn" class="bg-red-500 text-white px-5 py-2.5 rounded">🗑 清空数据</button>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow mb-6">
+        <div class="grid md:grid-cols-4 gap-4 mb-4">
+            <input type="text" id="search" placeholder="搜索名称/城市/地点" class="border p-3 rounded">
+            <select id="month" class="border p-3 rounded">
+                <option value="">全部月份</option>
+            </select>
+            <select id="city" class="border p-3 rounded">
+                <option value="">全部城市</option>
+            </select>
+        </div>
+        <div class="border-t pt-4 mt-4">
+            <div class="text-gray-500 text-sm mb-2">当前筛选条件：</div>
+            <div id="filterTags" class="flex flex-wrap"></div>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow overflow-x-auto">
+        <table id="expoTable">
+            <colgroup>
+                <col width="70">
+                <col width="100">
+                <col width="260">
+                <col width="150">
+                <col width="200">
+                <col width="100">
+                <col width="70">
+                <col width="220">
+                <col width="220">
+                <col width="140">
+                <col width="120">
+                <col width="120">
+            </colgroup>
+            <thead>
+                <tr class="bg-blue-50 text-left">
+                    <th class="p-3 border">月份</th>
+                    <th class="p-3 border">城市</th>
+                    <th class="p-3 border">展会名称</th>
+                    <th class="p-3 border">举办时间</th>
+                    <th class="p-3 border">举办地点</th>
+                    <th class="p-3 border">规模(㎡)</th>
+                    <th class="p-3 border">届数</th>
+                    <th class="p-3 border">主办单位</th>
+                    <th class="p-3 border">展会官网</th>
+                    <th class="p-3 border">备注</th>
+                    <th class="p-3 border">认领</th>
+                    <th class="p-3 border">操作</th>
+                </tr>
+            </thead>
+            <tbody id="list"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modal" class="fixed inset-0 bg-black/40 hidden justify-center items-center z-50">
+    <div class="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 rounded-lg">
+        <h2 class="text-xl font-bold mb-4" id="modalTitle">添加展会</h2>
+        <input type="hidden" id="editId">
+        <div class="grid md:grid-cols-2 gap-4">
+            <input id="m_month" placeholder="月份（例：3月）" class="border p-3 rounded">
+            <input id="m_city" placeholder="城市" class="border p-3 rounded">
+            <input id="m_name" placeholder="展会名称" class="border p-3 rounded col-span-2">
+            <input id="m_time" placeholder="举办时间" class="border p-3 rounded">
+            <input id="m_addr" placeholder="举办地点" class="border p-3 rounded">
+            <input id="m_area" placeholder="展会规模(㎡)" class="border p-3 rounded">
+            <input id="m_round" placeholder="届数" class="border p-3 rounded">
+            <input id="m_host" placeholder="主办单位" class="border p-3 rounded col-span-2">
+            <input id="m_web" placeholder="展会官网" class="border p-3 rounded col-span-2">
+            <input id="m_note" placeholder="备注" class="border p-3 rounded col-span-2">
+            <input id="m_owner" placeholder="认领人" class="border p-3 rounded col-span-2">
+        </div>
+        <div class="mt-6 flex gap-3 justify-end">
+            <button id="cancelModal" class="bg-gray-300 px-5 py-2.5 rounded">取消</button>
+            <button id="saveModal" class="bg-blue-600 text-white px-5 py-2.5 rounded">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let data = JSON.parse(localStorage.getItem('expo_data_full')) || [];
+
+function save() {
+    localStorage.setItem('expo_data_full', JSON.stringify(data));
+}
+
+function initResize() {
+    const table = document.getElementById('expoTable');
+    const cols = table.querySelectorAll('col');
+    const ths = table.querySelectorAll('th');
+
+    ths.forEach((th, i) => {
+        if (i >= cols.length - 1) return;
+        const resizer = document.createElement('div');
+        resizer.className = 'resizer';
+        th.appendChild(resizer);
+
+        let startX, startWidth;
+        resizer.addEventListener('mousedown', e => {
+            startX = e.pageX;
+            startWidth = cols[i].offsetWidth;
+            table.style.cursor = 'col-resize';
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', stop);
+            e.preventDefault();
+        });
+
+        function move(e) {
+            const w = startWidth + (e.pageX - startX);
+            cols[i].style.width = Math.max(50, w) + 'px';
+        }
+
+        function stop() {
+            table.style.cursor = '';
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', stop);
+        }
+    });
+}
+
+function renderFilterTags() {
+    const search = document.getElementById('search').value.trim();
+    const month = document.getElementById('month').value;
+    const city = document.getElementById('city').value;
+    const box = document.getElementById('filterTags');
+    box.innerHTML = '';
+
+    let has = false;
+
+    if (search) {
+        has = true;
+        const tag = document.createElement('div');
+        tag.className = 'filter-tag';
+        tag.innerHTML = `搜索：${search} <span class="close" data-type="search">×</span>`;
+        box.appendChild(tag);
+    }
+    if (month) {
+        has = true;
+        const tag = document.createElement('div');
+        tag.className = 'filter-tag';
+        tag.innerHTML = `月份：${month} <span class="close" data-type="month">×</span>`;
+        box.appendChild(tag);
+    }
+    if (city) {
+        has = true;
+        const tag = document.createElement('div');
+        tag.className = 'filter-tag';
+        tag.innerHTML = `城市：${city} <span class="close" data-type="city">×</span>`;
+        box.appendChild(tag);
+    }
+
+    if (!has) {
+        box.innerHTML = '<span class="text-gray-400">无筛选</span>';
+    }
+
+    document.querySelectorAll('.filter-tag .close').forEach(el => {
+        el.onclick = function () {
+            const type = this.dataset.type;
+            if (type === 'search') document.getElementById('search').value = '';
+            if (type === 'month') document.getElementById('month').value = '';
+            if (type === 'city') document.getElementById('city').value = '';
+            render();
+        };
+    });
+}
+
+function render() {
+    const s = document.getElementById('search').value.toLowerCase();
+    const month = document.getElementById('month').value;
+    const city = document.getElementById('city').value;
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+
+    renderFilterTags();
+
+    const month_set = new Set(), city_set = new Set();
+    data.forEach(item => {
+        month_set.add(item.month);
+        city_set.add(item.city);
+    });
+
+    const month_el = document.getElementById('month');
+    month_el.innerHTML = '<option value="">全部月份</option>';
+    [...month_set].sort().forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        if (m === month) opt.selected = true;
+        month_el.appendChild(opt);
+    });
+
+    const city_el = document.getElementById('city');
+    city_el.innerHTML = '<option value="">全部城市</option>';
+    [...city_set].sort().forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        if (c === city) opt.selected = true;
+        city_el.appendChild(opt);
+    });
+
+    data.forEach((item, idx) => {
+        if (month && item.month !== month) return;
+        if (city && item.city !== city) return;
+        const match = (item.name || '') + (item.city || '') + (item.addr || '');
+        if (s && !match.toLowerCase().includes(s)) return;
+
+        const tr = document.createElement('tr');
+        tr.className = 'border-b hover:bg-blue-50';
+        tr.innerHTML = `
+            <td class="p-3 border">${item.month || ''}</td>
+            <td class="p-3 border">${item.city || ''}</td>
+            <td class="p-3 border font-medium break-keep">${item.name || ''}</td>
+            <td class="p-3 border">${item.time || ''}</td>
+            <td class="p-3 border break-keep">${item.addr || ''}</td>
+            <td class="p-3 border">${item.area || ''}</td>
+            <td class="p-3 border">${item.round || ''}</td>
+            <td class="p-3 border break-keep">${item.host || ''}</td>
+            <td class="p-3 border text-blue-600 break-all">${item.web || ''}</td>
+            <td class="p-3 border break-keep">${item.note || ''}</td>
+            <td class="p-3 border font-medium text-blue-700">${item.owner || ''}</td>
+            <td class="p-3 border whitespace-nowrap">
+                <button data-idx="${idx}" class="editBtn text-xs bg-yellow-400 px-2 py-1 rounded mb-1">编辑</button>
+                <button data-idx="${idx}" class="delBtn text-xs bg-red-500 text-white px-2 py-1 rounded">删除</button>
+            </td>
+        `;
+        list.appendChild(tr);
+    });
+
+    document.querySelectorAll('.editBtn').forEach(b => {
+        b.onclick = () => edit(+b.dataset.idx);
+    });
+    document.querySelectorAll('.delBtn').forEach(b => {
+        b.onclick = () => {
+            if (confirm('确定删除？')) {
+                data.splice(+b.dataset.idx, 1);
+                save();
+                render();
+            }
+        };
+    });
+}
+
+function openModal(title, idx = -1) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('editId').value = idx;
+    const item = idx >= 0 ? data[idx] : {};
+
+    document.getElementById('m_month').value = item.month || '';
+    document.getElementById('m_city').value = item.city || '';
+    document.getElementById('m_name').value = item.name || '';
+    document.getElementById('m_time').value = item.time || '';
+    document.getElementById('m_addr').value = item.addr || '';
+    document.getElementById('m_area').value = item.area || '';
+    document.getElementById('m_round').value = item.round || '';
+    document.getElementById('m_host').value = item.host || '';
+    document.getElementById('m_web').value = item.web || '';
+    document.getElementById('m_note').value = item.note || '';
+    document.getElementById('m_owner').value = item.owner || '';
+
+    document.getElementById('modal').style.display = 'flex';
+}
+
+function edit(idx) {
+    openModal('编辑展会', idx);
+}
+
+document.getElementById('saveModal').onclick = () => {
+    const idx = +document.getElementById('editId').value;
+    const item = {
+        month: document.getElementById('m_month').value.trim(),
+        city: document.getElementById('m_city').value.trim(),
+        name: document.getElementById('m_name').value.trim(),
+        time: document.getElementById('m_time').value.trim(),
+        addr: document.getElementById('m_addr').value.trim(),
+        area: document.getElementById('m_area').value.trim(),
+        round: document.getElementById('m_round').value.trim(),
+        host: document.getElementById('m_host').value.trim(),
+        web: document.getElementById('m_web').value.trim(),
+        note: document.getElementById('m_note').value.trim(),
+        owner: document.getElementById('m_owner').value.trim()
+    };
+    if (!item.month || !item.city || !item.name) {
+        alert('月份、城市、名称不能为空');
+        return;
+    }
+    if (idx >= 0) data[idx] = item;
+    else data.push(item);
+    save();
+    render();
+    document.getElementById('modal').style.display = 'none';
+};
+
+document.getElementById('cancelModal').onclick = () => {
+    document.getElementById('modal').style.display = 'none';
+};
+
+document.getElementById('addBtn').onclick = () => openModal('添加展会');
+
+document.getElementById('exportBtn').onclick = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '展会数据.json';
+    a.click();
+};
+
+document.getElementById('clearBtn').onclick = () => {
+    if (confirm('确定清空所有数据？不可恢复！')) {
+        data = [];
+        save();
+        render();
+    }
+};
+
+document.getElementById('excelFile').onchange = function(e) {
+    importExcel(e);
+};
+
+function importExcel(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        try {
+            const wb = XLSX.read(ev.target.result, { type: 'binary' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(ws);
+            
+            if (!json.length) {
+                alert('Excel无数据');
+                resetFileInput();
+                return;
+            }
+
+            const imported = json.map(row => ({
+                month: row['月份'] || '',
+                city: row['城市'] || '',
+                name: row['展会名称'] || '',
+                time: row['举办时间'] || '',
+                addr: row['举办地点'] || '',
+                area: (row['展会规模'] || '').toString(),
+                round: (row['届数'] || '').toString(),
+                host: row['主办单位'] || '',
+                web: row['展会官网'] || '',
+                note: row['备注'] || '',
+                owner: row['认领'] || row['认领人'] || ''
+            })).filter(i => i.month && i.city && i.name);
+
+            if (!imported.length) {
+                alert('未识别到有效数据，请检查表头');
+                resetFileInput();
+                return;
+            }
+            
+            if (confirm(`成功识别 ${imported.length} 条数据，是否导入？`)) {
+                data = [...data, ...imported];
+                save();
+                render();
+                alert('导入成功！');
+            }
+        } catch (e) {
+            alert('导入失败：' + e.message);
+        } finally {
+            resetFileInput();
+        }
+    };
+    reader.readAsBinaryString(file);
+}
+
+function resetFileInput() {
+    document.getElementById('excelFile').value = '';
+}
+
+document.getElementById('search').oninput = render;
+document.getElementById('month').onchange = render;
+document.getElementById('city').onchange = render;
+
+render();
+initResize();
+</script>
+</body>
+</html>
